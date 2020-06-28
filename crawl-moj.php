@@ -2,7 +2,7 @@
 
 $content = file_get_contents("https://law.moj.gov.tw/Law/LawSearchLaw.aspx?TY=04051008");
 $output = fopen('php://output', 'w');
-fputcsv($output, array('pCode', 'title', ));
+fputcsv($output, array('title', 'pcode', 'seq', 'year', 'month', 'day', 'log'));
 
 $to_num = null;
 $to_num = function($str) use (&$to_num) {
