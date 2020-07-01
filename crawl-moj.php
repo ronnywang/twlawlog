@@ -37,18 +37,23 @@ $to_num = function($str) use (&$to_num) {
     if (mb_strlen($str, 'UTF-8') == 0) {
         return 0;
     }
+    if ($str == '五五') {
+        return 55;
+    }
 
     throw new Exception("未知的數字 {$str}");
 };
 
 file_put_Contents('error', '');
 
-preg_match_all('#LawSearchLaw.aspx\?TY=(\d+)#', $content, $matches);
-foreach ($matches[1] as $ty_id) {
+preg_match_all('#LawSearchLaw.aspx\?TY=(\d+)([^"]*)#', $content, $matches_url);
+foreach ($matches_url[1] as $idx => $ty_id) {
     $target = __DIR__ . "/html/{$ty_id}.html";
+    $url = html_entity_decode($matches_url[0][$idx]);
+    error_log($url);
     if (!file_exists($target)) {
         error_log($ty_id);
-        file_put_contents(__DIR__ . "/html/{$ty_id}.html", file_get_contents("https://law.moj.gov.tw/Law/LawSearchLaw.aspx?TY=" . $ty_id));
+        file_put_contents(__DIR__ . "/html/{$ty_id}.html", file_get_contents("https://law.moj.gov.tw/Law/{$url}"));
     }
 
     $content = file_get_contents($target);
@@ -103,6 +108,7 @@ foreach ($matches[1] as $ty_id) {
                 }
                 $old_title = $title;
                 $act = trim($matches[6]);
+                $act = str_replace('\\', '', $act);
                 if (preg_match('#（原名稱：(.*)；新名稱：(.*)）#u', $body, $matches2)) {
                     $old = $matches2[1];
                     $new = $matches2[2];
