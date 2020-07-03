@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<script src="//ajax.googleapis.com/ajax/libs/jquery/2.1.4/jquery.min.js"></script>
+<link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.0/css/bootstrap.min.css" integrity="sha384-9aIt2nRpC12Uk9gS9baDl411NQApFmC26EwAOH8WgZl5MYYxFfc+NcPb1dKGj7Sk" crossorigin="anonymous">
+<script
+  src="https://code.jquery.com/jquery-3.5.1.min.js"
+    integrity="sha256-9/aliU8dGd2tb6OSsuzixeV4y/faTqgFtohetphbbj0="
+      crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.0/dist/umd/popper.min.js" integrity="sha384-Q6E9RHvbIyZFJoft+2mJbHaEWldlvI9IOYy5n3zV9zzTtmI3UksdQRVvoxMfooAo" crossorigin="anonymous"></script>
+<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.0/js/bootstrap.min.js" integrity="sha384-OgVRvuATP1z7JjHLkuOU7Xw704+h835Lr+6QL9UvYjZE3Ipu6Tp75j7Bh/kR0JKI" crossorigin="anonymous"></script>
+<script src="diff.js"></script>
+</head>
+<body>
+<div class="container">
+    <h1></h1>
+    版本：<select id="versions"></select>
+    <table class="table">
+        <thead>
+            <tr>
+                <th style="width: 10%">條</th>
+                <th>內容</th>
+                <th style="width: 10%">歷史記錄</th>
+                <th>立法理由</th>
+            </tr>
+        </thead>
+        <tbody id="law-data">
+        </tbody>
+    </table>
+</div>
+<script>
+var get_history_log = function(records, version){
+    $('#law-data').html('');
+
+    var checking_record = records[version];
+    var current_data = checking_record.law_data;
+    for (var i = 0; i < current_data.length; i ++) {
+        current_data[i].version = 0;
+    }
+
+    for (var i = version - 1; i >= 0; i --) {
+        // 拿最新版跟第 i 版做比較
+        var hitted_law = {};
+        for (var j = 0; j < current_data.length; j ++) {
+            if (current_data[j].version != 0) {
+                continue;
+            }
+
+            // 先抓出完全一樣的
+            var hit_k = -1;
+            for (var k = 0; k < records[i].law_data.length; k ++) {
+                if (hitted_law[k]) {
+                    continue;
+                }
+                if (current_data[j].section_name && records[i].law_data[k].section_name && current_data[j].section_name == records[i].law_data[k].section_name) {
+                    hit_k = k;
+                    break;
+                } else if (current_data[j].rule_no && records[i].law_data[k].rule_no && current_data[j].rule_no == records[i].law_data[k].rule_no && current_data[j].content == records[i].law_data[k].content) {
+                    hit_k = k;
+                    break;
+                }
+            }
+            if (hit_k >= 0) {
+                hitted_law[hit_k] = true;
+                continue;
+            }
+
+            // 再來找最接近的
+            var diff_count = [];
+            for (var k = 0; k < records[i].law_data.length; k ++) {
+                if (hitted_law[k]) {
+                    continue;
+                }
+                
+                if (current_data[j].section_name || records[i].law_data[k].section_name) {
+                    continue;
+                }
+                continue;
+                // XXX: 先不跑 diff
+
+                var diffs = JsDiff.diffChars(current_data[j].content, records[i].law_data[k].content);
+                var c = 0;
+                diffs.map(function(d) {
+                    if (d.added || d.removed) {
+                        c += d.count;
+                    }
+                });
+                
+                diff_count.push([k, diffs, c]);
+            }
+            diff_count = diff_count.sort(function(a, b) { return a[2] - b[2]; });
+
+            current_data[j].version = i + 1;
+            current_data[j].diff_log = diff_count[0];
+        }
+    }
+    return current_data;
+};
+
+var show_version = function(version){
+    var latest_record = records[version];
+    $('h1').text(latest_record.title);
+    var law_data = get_history_log(records, version);
+
+    for (var data of law_data) {
+        var tr_dom = $('<tr></tr>');
+        if (data.section_name) {
+            tr_dom.append($('<td></td>').attr('colspan', 2).text(data.section_name));
+        } else if (data.rule_no) {
+            tr_dom.append($('<td></td>').text(data.rule_no));
+            var td_dom = $('<td></td>');
+            data.content.split("\n").map(function(line){
+                    td_dom.append($('<p></p>').text(line));
+            });
+            tr_dom.append(td_dom);
+        } else {
+            console.log(data);
+            continue;
+        }
+        var td_dom = $('<td></td>');
+        records[data.version].versions.map(function(v){
+            td_dom.append($('<p></p>').text(v));
+        });
+        td_dom.attr('title', 'a=' + JSON.stringify(data.diff_log));
+        tr_dom.append(td_dom);
+
+        var td_dom = $('<td></td>');
+        if ('string' === typeof(records[data.version].law_reasons[data.rule_no])) {
+            records[data.version].law_reasons[data.rule_no].split("\n").map(function(line){
+                    td_dom.append($('<p></p>').text(line));
+            });
+        }
+        tr_dom.append(td_dom);
+        
+        $('#law-data').append(tr_dom);
+    }
+};
+
+var lycode = null;
+var matches;
+var records;
+matches = document.location.href.match(/id=(\d+)/);
+
+if (matches) {
+    $.get('https://raw.githubusercontent.com/ronnywang/tw-law-corpus/data/' + matches[1] + '.json', function(r) {
+        records = r;
+        for (var id in records) {
+            $('#versions').append($('<option></option>').attr('value', id).text(records[id].versions.join(' ')));
+        }
+        $('#versions').val(id).change();
+    }, 'json');
+}
+
+$('#versions').change(function(){
+    show_version(parseInt($(this).val()));
+});
+
+</script>
+</body>
+</html>
