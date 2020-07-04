@@ -126,7 +126,7 @@ var show_version = function(version){
         tr_dom.append(td_dom);
 
         var td_dom = $('<td></td>');
-        if ('string' === typeof(records[data.version].law_reasons[data.rule_no])) {
+        if ('undefined' !== typeof(records[data.version].law_reasons) && 'string' === typeof(records[data.version].law_reasons[data.rule_no])) {
             records[data.version].law_reasons[data.rule_no].split("\n").map(function(line){
                     td_dom.append($('<p></p>').text(line));
             });
