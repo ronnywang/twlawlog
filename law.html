@@ -10,6 +10,7 @@
       crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.0/dist/umd/popper.min.js" integrity="sha384-Q6E9RHvbIyZFJoft+2mJbHaEWldlvI9IOYy5n3zV9zzTtmI3UksdQRVvoxMfooAo" crossorigin="anonymous"></script>
 <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.0/js/bootstrap.min.js" integrity="sha384-OgVRvuATP1z7JjHLkuOU7Xw704+h835Lr+6QL9UvYjZE3Ipu6Tp75j7Bh/kR0JKI" crossorigin="anonymous"></script>
+
 <script src="//unpkg.com/string-similarity/umd/string-similarity.min.js"></script>
 <script src="diff.js"></script>
 </head>
@@ -137,7 +138,23 @@ var show_version = function(version){
                     for (var data of law_data) {
                         if (data.rule_no && data.rule_no.replace(/\s+/, '') == ruleno) {
                             var c = stringSimilarity.compareTwoStrings(content.replace(/\s+/, ''), data.content.replace(/\s+/, ''));
-                            td_dom.append($('<div></div>').text(data.rule_no + ' ' + (100 * c).toPrecision(3) + '%').attr('title', "舊版本：" + old_content + "\n" + "提案版本：" + data.content + "\n" + "施行版本：" + content));
+                            var tooltip_table_dom = $('<table class="table"></table>');
+                            tooltip_table_dom.append('<tr><td>舊版本</td><td>提案版本</td><td>施行版本</td></tr>');
+                            var tooltip_tr_dom = $('<tr></tr>');
+                            tooltip_tr_dom.append($('<td></td>').text($.trim(old_content)));
+                            tooltip_tr_dom.append($('<td></td>').text($.trim(data.content)));
+                            tooltip_tr_dom.append($('<td></td>').text($.trim(content)));
+                            tooltip_table_dom.append($('<tbody></tbody>').append(tooltip_tr_dom));
+
+                            var div_dom = $('<div></div>')
+                                .text(data.rule_no + ' ' + (100 * c).toPrecision(3) + '%')
+                                .attr('data-original-title', '<table>' + tooltip_table_dom.html() + '</table>')
+                                .attr('data-container', 'body')
+                                .attr('data-toggle', 'tooltip')
+                                .attr('data-html', 'true')
+                            ;
+                            td_dom.append(div_dom);
+                            div_dom.tooltip({sanitize: false});
 
                         }
                     }
@@ -150,7 +167,6 @@ var show_version = function(version){
             tr_dom.append($('<td></td>').text(history['立法紀錄']));
             tr_dom.append($('<td></td>').text(''));
         }
-        tr_dom.attr('title', JSON.stringify(history));
         $('#law-log').append(tr_dom);
     }
 
