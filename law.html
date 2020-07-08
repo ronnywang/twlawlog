@@ -10,12 +10,25 @@
       crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.0/dist/umd/popper.min.js" integrity="sha384-Q6E9RHvbIyZFJoft+2mJbHaEWldlvI9IOYy5n3zV9zzTtmI3UksdQRVvoxMfooAo" crossorigin="anonymous"></script>
 <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.0/js/bootstrap.min.js" integrity="sha384-OgVRvuATP1z7JjHLkuOU7Xw704+h835Lr+6QL9UvYjZE3Ipu6Tp75j7Bh/kR0JKI" crossorigin="anonymous"></script>
+<script src="//unpkg.com/string-similarity/umd/string-similarity.min.js"></script>
 <script src="diff.js"></script>
 </head>
 <body>
 <div class="container">
     <h1></h1>
     版本：<select id="versions"></select>
+    <table class="table">
+        <thead>
+            <tr>
+                <th>進度</th>
+                <th>日期</th>
+                <th>立法紀錄</th>
+                <th>其他</th>
+            </tr>
+        </thead>
+        <tbody id="law-log">
+        </tbody>
+    </table>
     <table class="table">
         <thead>
             <tr>
@@ -31,7 +44,6 @@
 </div>
 <script>
 var get_history_log = function(records, version){
-    $('#law-data').html('');
 
     var checking_record = records[version];
     var current_data = checking_record.law_data;
@@ -67,41 +79,82 @@ var get_history_log = function(records, version){
             }
 
             // 再來找最接近的
-            var diff_count = [];
             for (var k = 0; k < records[i].law_data.length; k ++) {
                 if (hitted_law[k]) {
                     continue;
                 }
-                
-                if (current_data[j].section_name || records[i].law_data[k].section_name) {
-                    continue;
-                }
-                continue;
-                // XXX: 先不跑 diff
 
-                var diffs = JsDiff.diffChars(current_data[j].content, records[i].law_data[k].content);
-                var c = 0;
-                diffs.map(function(d) {
-                    if (d.added || d.removed) {
-                        c += d.count;
-                    }
-                });
-                
-                diff_count.push([k, diffs, c]);
+                if (current_data[j].section_name && records[i].law_data[k].section_name && current_data[j].section_name.split(' ')[0] == records[i].law_data[k].section_name.split(' ')[0]) {
+                    current_data[j].old_data = records[i].law_data[k].section_name;
+                    break;
+                } else if (current_data[j].rule_no && records[i].law_data[k].rule_no && current_data[j].rule_no == records[i].law_data[k].rule_no) {
+                    current_data[j].old_data = records[i].law_data[k].content;
+                    break;
+                }
             }
-            diff_count = diff_count.sort(function(a, b) { return a[2] - b[2]; });
 
             current_data[j].version = i + 1;
-            current_data[j].diff_log = diff_count[0];
         }
     }
     return current_data;
 };
 
+var law_data;
 var show_version = function(version){
     var latest_record = records[version];
     $('h1').text(latest_record.title);
-    var law_data = get_history_log(records, version);
+    law_data = get_history_log(records, version);
+
+    $('#law-log').html('');
+    for (var history of records[version].law_history) {
+        var tr_dom = $('<tr></tr>');
+        tr_dom.append($('<td></td>').text(history['進度']));
+        tr_dom.append($('<td></td>').text(history['會議日期']));
+        var hit_proposal = null;
+        if (history['關係文書'].length > 0 && history['關係文書'][0].length > 0 && history['關係文書'][0][1].match(/LCEW.*/)) {
+            var matches = history['關係文書'][0][1].match(/LCEW.*/);
+            for (var proposal of proposal_data) {
+                if (proposal.proposal_id.indexOf(matches[0]) > 0) {
+                    hit_proposal = proposal;
+                    break;
+                }
+            }
+        }
+
+        if (hit_proposal) {
+            var a_dom = $('<a></a>');
+            a_dom.attr('href', 'https://misq.ly.gov.tw/MISQ/IQuery/misq5000QueryBillDetail.action?billNo=' + hit_proposal.data.billNo).text(hit_proposal.data.billOrg + hit_proposal.data.billName);
+            tr_dom.append($('<td></td>').append(a_dom).attr('title', hit_proposal.data.billProposer));
+            if (hit_proposal.law_history) {
+                var td_dom = $('<td></td>');
+
+                for (var history of hit_proposal.law_history) {
+                    var new_data = history[0];
+                    var ruleno = new_data.split(/　/)[0].replace(/\s+/, '');;
+                    var old_content = history[1].substr(ruleno.length);
+                    var content = new_data.substr(ruleno.length);
+
+                    for (var data of law_data) {
+                        if (data.rule_no && data.rule_no.replace(/\s+/, '') == ruleno) {
+                            var c = stringSimilarity.compareTwoStrings(content.replace(/\s+/, ''), data.content.replace(/\s+/, ''));
+                            td_dom.append($('<div></div>').text(data.rule_no + ' ' + (100 * c).toPrecision(3) + '%').attr('title', "舊版本：" + old_content + "\n" + "提案版本：" + data.content + "\n" + "施行版本：" + content));
+
+                        }
+                    }
+                }
+                tr_dom.append($('<td></td>').append(td_dom));
+            } else {
+                tr_dom.append($('<td></td>').text('找不到 law_history'));
+            }
+        } else {
+            tr_dom.append($('<td></td>').text(history['立法紀錄']));
+            tr_dom.append($('<td></td>').text(''));
+        }
+        tr_dom.attr('title', JSON.stringify(history));
+        $('#law-log').append(tr_dom);
+    }
+
+    $('#law-data').html('');
 
     for (var data of law_data) {
         var tr_dom = $('<tr></tr>');
@@ -143,13 +196,17 @@ var records;
 matches = document.location.href.match(/id=(\d+)/);
 
 if (matches) {
-    $.get('https://raw.githubusercontent.com/ronnywang/tw-law-corpus/data/' + matches[1] + '.json', function(r) {
-        records = r;
-        for (var id in records) {
-            $('#versions').append($('<option></option>').attr('value', id).text(records[id].versions.join(' ')));
-        }
-        $('#versions').val(id).change();
-    }, 'json');
+    $.get('outputs/' + matches[1] + '.json', function(ret){
+        proposal_data = ret;
+    }).always(function(){
+        $.get('https://raw.githubusercontent.com/ronnywang/tw-law-corpus/data/' + matches[1] + '.json', function(r) {
+            records = r;
+            for (var id in records) {
+                $('#versions').append($('<option></option>').attr('value', id).text(records[id].versions.join(' ')));
+            }
+            $('#versions').val(id).change();
+        }, 'json');
+    });
 }
 
 $('#versions').change(function(){
