@@ -60,7 +60,7 @@ foreach ($matches_url[1] as $idx => $ty_id) {
     preg_match_all('#Hot/AddHotLaw.ashx\?PCode=([^"]*)#', $content, $matches);
     foreach ($matches[1] as $pcode) {
         $target = __DIR__ . "/html/history-{$pcode}.html";
-        if (!file_exists($target)) {
+        if (!file_exists($target) or filesize($target) < 1000) {
             error_log($target);
             file_put_contents($target, file_get_contents("https://law.moj.gov.tw/LawClass/LawHistory.aspx?pcode={$pcode}"));
             sleep(1);
